@@ -20,15 +20,12 @@ local TARGETS = {
 
 local function runRemoteScript(path, label)
     local source = HUB_BASE .. path
-    local chunk, loadErr = loadstring(game:HttpGet(source))
-    if not chunk then
-        warn(string.format("[linkoro57] Failed to compile %s (%s): %s", label, source, tostring(loadErr)))
-        return
-    end
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet(source))()
+    end)
 
-    local ok, err = pcall(chunk)
     if not ok then
-        warn(string.format("[linkoro57] Failed to run %s (%s): %s", label, source, tostring(err)))
+        warn(string.format("[linkoro57] Failed to load %s (%s): %s", label, source, tostring(err)))
     end
 end
 
