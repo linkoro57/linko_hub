@@ -1060,12 +1060,12 @@ end
 
 task.spawn(function()
     while true do
-        local interval = Options.SellSlider.Value
+        local interval = tonumber(Options.SellSlider and Options.SellSlider.Value) or 2
         task.wait(math.max(interval, 0.1))
-        if Options.SellToggle.Value then
+        if Options.SellToggle and Options.SellToggle.Value then
             for _, tool in ipairs(GetAllTools()) do
                 if ShouldSell(tool) then
-                    TrySell(tool)
+                    pcall(TrySell, tool)
                     task.wait(0.05)
                 end
             end

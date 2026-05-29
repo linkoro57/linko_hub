@@ -30,6 +30,9 @@ end
 
 local function round(value, step)
     step = step or 1
+    if step <= 0 then
+        return math.floor(value + 0.5)
+    end
     return math.floor((value / step) + 0.5) * step
 end
 
@@ -81,6 +84,14 @@ local function makeCard(parent, height)
     })
     new("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 14) })
     new("UIStroke", { Parent = frame, Color = palette.stroke, Thickness = 1, Transparency = 0.18 })
+    new("UIGradient", {
+        Parent = frame,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(24, 32, 47)),
+            ColorSequenceKeypoint.new(1, palette.panel),
+        }),
+        Rotation = 90,
+    })
     return frame
 end
 
@@ -181,6 +192,8 @@ function UI:CreateWindow(config)
         _tabs = {},
         _activeTab = nil,
         _defaultSize = config.Size or UDim2.fromOffset(620, 440),
+        _minSize = config.MinSize or UDim2.fromOffset(430, 290),
+        _maxSize = config.MaxSize or UDim2.fromOffset(900, 650),
         _minimized = false,
     }
 
@@ -347,7 +360,7 @@ function UI:CreateWindow(config)
         Position = UDim2.new(1, -44, 0.5, 0),
         Size = UDim2.new(0, 28, 0, 24),
         Font = Enum.Font.GothamBold,
-        Text = "–",
+        Text = "-",
         TextColor3 = palette.text,
         TextSize = 16,
         AutoButtonColor = false,
@@ -409,6 +422,20 @@ function UI:CreateWindow(config)
 
     local pages = new("Folder", { Parent = content })
 
+    local function setWindowSize(size, animate)
+        local width = clamp(size.X.Offset, window._minSize.X.Offset, window._maxSize.X.Offset)
+        local height = clamp(size.Y.Offset, window._minSize.Y.Offset, window._maxSize.Y.Offset)
+        window._defaultSize = UDim2.fromOffset(width, height)
+
+        if window._minimized then
+            main.Size = UDim2.new(0, width, 0, 62)
+        elseif animate then
+            tween(main, { Size = window._defaultSize }, 0.14)
+        else
+            main.Size = window._defaultSize
+        end
+    end
+
     local function setMinimized(state)
         window._minimized = state
         for _, child in ipairs(body:GetChildren()) do
@@ -417,9 +444,9 @@ function UI:CreateWindow(config)
             end
         end
         if state then
-            main.Size = UDim2.new(window._defaultSize.X.Scale, window._defaultSize.X.Offset, 0, 62)
+            tween(main, { Size = UDim2.new(window._defaultSize.X.Scale, window._defaultSize.X.Offset, 0, 62) }, 0.16)
         else
-            main.Size = window._defaultSize
+            tween(main, { Size = window._defaultSize }, 0.16)
         end
     end
 
@@ -435,6 +462,52 @@ function UI:CreateWindow(config)
             UI._notificationHolder = nil
         end
     end)
+
+    local resizeHandle = new("TextButton", {
+        Parent = main,
+        BackgroundColor3 = Color3.fromRGB(27, 38, 56),
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -8, 1, -8),
+        Size = UDim2.new(0, 22, 0, 22),
+        Font = fonts.bold,
+        Text = "+",
+        TextColor3 = palette.accent,
+        TextSize = 14,
+        AutoButtonColor = false,
+        ZIndex = 20,
+    })
+    new("UICorner", { Parent = resizeHandle, CornerRadius = UDim.new(0, 7) })
+    new("UIStroke", { Parent = resizeHandle, Color = palette.accent, Thickness = 1, Transparency = 0.45 })
+
+    do
+        local resizing = false
+        local resizeStart = nil
+        local startSize = nil
+
+        resizeHandle.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                resizing = true
+                resizeStart = input.Position
+                startSize = main.Size
+                tween(resizeHandle, { BackgroundColor3 = palette.accentSoft }, 0.1)
+            end
+        end)
+
+        resizeHandle.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                resizing = false
+                tween(resizeHandle, { BackgroundColor3 = Color3.fromRGB(27, 38, 56) }, 0.1)
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if resizing and input.UserInputType == Enum.UserInputType.MouseMovement and resizeStart and startSize then
+                local delta = input.Position - resizeStart
+                setWindowSize(UDim2.fromOffset(startSize.X.Offset + delta.X, startSize.Y.Offset + delta.Y), false)
+            end
+        end)
+    end
 
     do
         local dragging = false
@@ -469,14 +542,16 @@ function UI:CreateWindow(config)
         end
 
         if window._activeTab then
-            window._activeTab.Button.BackgroundColor3 = palette.panelAlt
-            window._activeTab.Button.TextColor3 = palette.text
+            tween(window._activeTab.Button, { BackgroundColor3 = palette.panelAlt, TextColor3 = palette.text }, 0.13)
+            tween(window._activeTab.LeftBar, { BackgroundTransparency = 0.55, Size = UDim2.new(0, 3, 1, -18) }, 0.13)
+            tween(window._activeTab.Glow, { BackgroundTransparency = 1 }, 0.13)
             window._activeTab.Page.Visible = false
         end
 
         window._activeTab = tab
-        tab.Button.BackgroundColor3 = palette.accentSoft
-        tab.Button.TextColor3 = Color3.new(1, 1, 1)
+        tween(tab.Button, { BackgroundColor3 = palette.accentSoft, TextColor3 = Color3.new(1, 1, 1) }, 0.13)
+        tween(tab.LeftBar, { BackgroundTransparency = 0, Size = UDim2.new(0, 4, 1, -10) }, 0.13)
+        tween(tab.Glow, { BackgroundTransparency = 0.82 }, 0.13)
         tab.Page.Visible = true
     end
 
@@ -535,8 +610,20 @@ function UI:CreateWindow(config)
             BorderSizePixel = 0,
             Position = UDim2.new(0, 0, 0, 6),
             Size = UDim2.new(0, 3, 1, -12),
+            BackgroundTransparency = 0.55,
         })
         new("UICorner", { Parent = leftBar, CornerRadius = UDim.new(0, 12) })
+
+        local tabGlow = new("Frame", {
+            Parent = button,
+            BackgroundColor3 = palette.accent,
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 0, 0),
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+        })
+        tabGlow.ZIndex = 0
+        new("UICorner", { Parent = tabGlow, CornerRadius = UDim.new(0, 12) })
 
         local page = new("ScrollingFrame", {
             Parent = pages,
@@ -569,6 +656,8 @@ function UI:CreateWindow(config)
         end)
 
         tab.Button = button
+        tab.LeftBar = leftBar
+        tab.Glow = tabGlow
         tab.Page = page
         tab._list = list
         tab._page = page
@@ -815,11 +904,23 @@ function UI:CreateWindow(config)
         function tab:AddDropdown(id, props)
             props = props or {}
             local values = props.Values or {}
+            local isMulti = props.Multi and true or false
             local control = {
-                Value = props.Default,
+                Value = isMulti and {} or props.Default,
                 _callback = props.Callback,
                 _open = false,
             }
+            local optionButtons = {}
+
+            if isMulti and typeof(props.Default) == "table" then
+                for key, value in pairs(props.Default) do
+                    if value == true then
+                        control.Value[key] = true
+                    elseif typeof(key) == "number" then
+                        control.Value[value] = true
+                    end
+                end
+            end
 
             local collapsedHeight = 56
             local optionHeight = 32
@@ -863,8 +964,31 @@ function UI:CreateWindow(config)
                 Padding = UDim.new(0, 6),
             })
 
+            local function countSelected()
+                local count = 0
+                for _, selected in pairs(control.Value) do
+                    if selected == true then
+                        count += 1
+                    end
+                end
+                return count
+            end
+
             local function refreshValueText()
+                if isMulti then
+                    local selected = countSelected()
+                    valueLabel.Text = selected == 0 and "None selected" or tostring(selected) .. " selected"
+                    return
+                end
                 valueLabel.Text = tostring(control.Value or "")
+            end
+
+            local function refreshOptions()
+                for option, optionButton in pairs(optionButtons) do
+                    local selected = isMulti and control.Value[option] == true
+                    optionButton.BackgroundColor3 = selected and palette.accentSoft or palette.panelAlt
+                    optionButton.TextColor3 = selected and Color3.new(1, 1, 1) or palette.text
+                end
             end
 
             local function refreshSize()
@@ -879,11 +1003,31 @@ function UI:CreateWindow(config)
             end
 
             local function apply(value, silent)
+                if isMulti then
+                    control.Value = {}
+                    if typeof(value) == "table" then
+                        for key, item in pairs(value) do
+                            if item == true then
+                                control.Value[key] = true
+                            elseif typeof(key) == "number" then
+                                control.Value[item] = true
+                            end
+                        end
+                    end
+                    refreshValueText()
+                    refreshOptions()
+                    if control._callback and not silent then
+                        control._callback(control.Value)
+                    end
+                    return
+                end
+
                 if value == nil then
                     value = values[1]
                 end
                 control.Value = value
                 refreshValueText()
+                refreshOptions()
                 if control._callback and not silent then
                     control._callback(value)
                 end
@@ -903,9 +1047,22 @@ function UI:CreateWindow(config)
                 })
                 new("UICorner", { Parent = optionButton, CornerRadius = UDim.new(0, 10) })
                 new("UIStroke", { Parent = optionButton, Color = palette.stroke, Thickness = 1, Transparency = 0.35 })
+                optionButtons[option] = optionButton
                 optionButton.MouseButton1Click:Connect(function()
-                    apply(option, false)
-                    control._open = false
+                    if isMulti then
+                        control.Value[option] = not control.Value[option]
+                        if control.Value[option] == false then
+                            control.Value[option] = nil
+                        end
+                        refreshValueText()
+                        refreshOptions()
+                        if control._callback then
+                            control._callback(control.Value)
+                        end
+                    else
+                        apply(option, false)
+                        control._open = false
+                    end
                     refreshSize()
                 end)
             end
@@ -928,6 +1085,7 @@ function UI:CreateWindow(config)
             end
 
             apply(control.Value, true)
+            refreshOptions()
             refreshSize()
             return control
         end
