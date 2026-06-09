@@ -21,8 +21,8 @@ local character = player.Character or player.CharacterAdded:Wait()
 -- Fluent UI Setup (Larger Window)
 -- ============================================================
 local Window = Fluent:CreateWindow({
-    Title = "Infinite Money",
-    SubTitle = "by linkoro57",
+    Title = "Mango Hub",
+    SubTitle = "Ban or Be Banned",
     TabWidth = 180,  -- Increased tab width
     Size = UDim2.fromOffset(500, 300),  -- Larger window size
     Acrylic = false,

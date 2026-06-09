@@ -4,8 +4,8 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/d
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 local Window = Fluent:CreateWindow({
-    Title = "Be a Lucky Block",
-    SubTitle = "by linkoro57",
+    Title = "Mango Hub",
+    SubTitle = "Be a Lucky Block",
     TabWidth = 160,
     Size = UDim2.fromOffset(550, 430),
     Acrylic = false,
