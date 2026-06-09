@@ -40,7 +40,12 @@ local function runRemoteScript(path, label)
         return
     end
 
-    local ok, err = pcall(chunk)
+    local ok, err = xpcall(chunk, function(message)
+        if type(debug) == "table" and type(debug.traceback) == "function" then
+            return debug.traceback(tostring(message), 2)
+        end
+        return tostring(message)
+    end)
 
     if not ok then
         warn(string.format("[linkoro57] Failed to load %s (%s): %s", label, source, tostring(err)))

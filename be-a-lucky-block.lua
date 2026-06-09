@@ -1,9 +1,46 @@
 -- Fluent UI Setup
 local Fluent, SaveManager, InterfaceManager
+
+local function loadRemoteModule(url, label)
+    if type(loadstring) ~= "function" then
+        return nil, "loadstring is not available"
+    end
+
+    local fetchOk, source = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+
+    if not fetchOk or type(source) ~= "string" or source == "" then
+        return nil, "download failed: " .. tostring(source)
+    end
+
+    local chunk, compileErr = loadstring(source)
+    if type(chunk) ~= "function" then
+        return nil, "compile failed: " .. tostring(compileErr)
+    end
+
+    local runOk, result = pcall(chunk)
+    if not runOk then
+        return nil, "runtime failed: " .. tostring(result)
+    end
+
+    if result == nil then
+        return nil, label .. " returned nil"
+    end
+
+    return result
+end
+
 local uiSuccess, uiErr = pcall(function()
-    Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-    SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-    InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+    local err
+    Fluent, err = loadRemoteModule("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua", "Fluent")
+    if not Fluent then error(err) end
+
+    SaveManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua", "SaveManager")
+    if not SaveManager then error(err) end
+
+    InterfaceManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua", "InterfaceManager")
+    if not InterfaceManager then error(err) end
 end)
 
 if not uiSuccess or not Fluent then
