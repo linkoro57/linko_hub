@@ -144,26 +144,6 @@ task.spawn(function()
     end)
 end)
 
--- Bouton pour se téléporter à la base sélectionnée
-Tabs.Farm:AddButton({
-    Title = "Teleport to Selected Base",
-    Callback = function()
-        local target = workspace:WaitForChild("CollectZones"):FindFirstChild(selectedBase)
-        if target then
-            local player = game.Players.LocalPlayer
-            local character = player.Character or player.CharacterAdded:Wait()
-            local root = character:WaitForChild("HumanoidRootPart")
-            root.CFrame = target.CFrame * CFrame.new(0, 5, 0)
-        else
-            Fluent:Notify({
-                Title = "Error",
-                Content = "Base not found: " .. selectedBase,
-                Duration = 3
-            })
-        end
-    end
-})
-
 ---
 --- Auto Farm Best Brainrots (avec sélection de base)
 ---
