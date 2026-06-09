@@ -9,6 +9,7 @@ end
 local Fluent = bundle.Fluent
 local SaveManager = bundle.SaveManager
 local InterfaceManager = bundle.InterfaceManager
+local Library = bundle.Library
 
 -- Services
 local Players = game:GetService("Players")
@@ -223,8 +224,8 @@ end)
 -- ============================================================
 -- Save and Load Configurations
 -- ============================================================
-SaveManager:SetLibrary(Fluent)
-InterfaceManager:SetLibrary(Fluent)
+SaveManager:SetLibrary(Library)
+InterfaceManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 InterfaceManager:SetFolder("FluentScriptHub")
