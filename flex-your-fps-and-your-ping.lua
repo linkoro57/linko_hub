@@ -61,6 +61,10 @@ local GuiService = game:GetService("GuiService")
 local Stats = game:GetService("Stats")
 local TextService = game:GetService("TextService")
 local UserInputService = game:GetService("UserInputService")
+local MeowRemote = ReplicatedStorage:WaitForChild("meow")
+local NyaRemote = ReplicatedStorage:WaitForChild("nya")
+local MeowConnection
+local FPSConnection
 
 local FYFPConfig = {
 	FPS = {
@@ -82,19 +86,7 @@ local FYFPConfig = {
 		Enabled = false,
 		Value = 5,
 	},
-	Debug = {
-		Log = false,
-		Rayfield = nil,
-		con = nil,
-		preRenderCon = nil,
-	},
 }
-
-local function debugLog(...)
-	if FYFPConfig.Debug.Log then
-		print(...)
-	end
-end
 
 local function notify(title, content, image)
 	Fluent:Notify({
@@ -136,7 +128,6 @@ local Window = Fluent:CreateWindow({
 local Tabs = {
 	Overview = Window:AddTab({ Title = "Overview", Icon = "layout-dashboard" }),
 	Spoof = Window:AddTab({ Title = "Spoof", Icon = "sliders-horizontal" }),
-	Debug = Window:AddTab({ Title = "Debug", Icon = "bug" }),
 	Settings = Window:AddTab({ Title = "Settings", Icon = "settings" }),
 }
 
@@ -162,7 +153,7 @@ fpsToggle:OnChanged(function(value)
 	FYFPConfig.FPS.Enabled = value
 end)
 
-local fpsInput = Tabs.Spoof:AddInput("FPSValue", {
+Tabs.Spoof:AddInput("FPSValue", {
 	Title = "FPS value",
 	Default = "400",
 	Placeholder = "Spoofed FPS amount",
@@ -202,7 +193,7 @@ memoryToggle:OnChanged(function(value)
 	FYFPConfig.Memory.Enabled = value
 end)
 
-local memoryInput = Tabs.Spoof:AddInput("MemoryValue", {
+Tabs.Spoof:AddInput("MemoryValue", {
 	Title = "Memory value",
 	Default = "1024",
 	Placeholder = "Spoofed memory amount",
@@ -236,7 +227,7 @@ screenToggle:OnChanged(function(value)
 	FYFPConfig.ScreenRes.Enabled = value
 end)
 
-local screenWidthInput = Tabs.Spoof:AddInput("ScreenResWidth", {
+Tabs.Spoof:AddInput("ScreenResWidth", {
 	Title = "Screen width",
 	Default = "1920",
 	Placeholder = "Spoofed screen width",
@@ -253,7 +244,7 @@ local screenWidthInput = Tabs.Spoof:AddInput("ScreenResWidth", {
 	end,
 })
 
-local screenHeightInput = Tabs.Spoof:AddInput("ScreenResHeight", {
+Tabs.Spoof:AddInput("ScreenResHeight", {
 	Title = "Screen height",
 	Default = "1080",
 	Placeholder = "Spoofed screen height",
@@ -279,7 +270,7 @@ gqToggle:OnChanged(function(value)
 	FYFPConfig.GQ.Enabled = value
 end)
 
-local gqSlider = Tabs.Spoof:AddSlider("GQValue", {
+Tabs.Spoof:AddSlider("GQValue", {
 	Title = "Graphics quality",
 	Description = "0 = Automatic",
 	Default = 5,
@@ -288,46 +279,6 @@ local gqSlider = Tabs.Spoof:AddSlider("GQValue", {
 	Rounding = 0,
 	Callback = function(value)
 		FYFPConfig.GQ.Value = clampNumber(value, 0, 10)
-	end,
-})
-
-Tabs.Debug:AddSection("Logging")
-Tabs.Debug:AddToggle("EnableLogging", {
-	Title = "Enable console logging",
-	Default = false,
-}):OnChanged(function(value)
-	FYFPConfig.Debug.Log = value
-end)
-
-Tabs.Debug:AddButton({
-	Title = "Print current spoof state",
-	Description = "Writes the current configuration to the console.",
-	Callback = function()
-		print("[Flex your FPS and Ping] Current state:")
-		print("FPS:", FYFPConfig.FPS.Enabled, FYFPConfig.FPS.Value, FYFPConfig.FPS.Fluctuating)
-		print("Memory:", FYFPConfig.Memory.Enabled, FYFPConfig.Memory.Value, FYFPConfig.Memory.Fluctuating)
-		print("ScreenRes:", FYFPConfig.ScreenRes.Enabled, FYFPConfig.ScreenRes.Width, FYFPConfig.ScreenRes.Height)
-		print("GQ:", FYFPConfig.GQ.Enabled, FYFPConfig.GQ.Value)
-	end,
-})
-
-Tabs.Debug:AddButton({
-	Title = "Close UI",
-	Description = "Destroys the interface and disconnects listeners.",
-	Callback = function()
-		pcall(function()
-			Window:Destroy()
-		end)
-
-		if FYFPConfig.Debug.con then
-			FYFPConfig.Debug.con:Disconnect()
-			FYFPConfig.Debug.con = nil
-		end
-
-		if FYFPConfig.Debug.preRenderCon then
-			FYFPConfig.Debug.preRenderCon:Disconnect()
-			FYFPConfig.Debug.preRenderCon = nil
-		end
 	end,
 })
 
@@ -342,6 +293,26 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Tabs.Settings:AddSection("Defaults")
+Tabs.Settings:AddButton({
+	Title = "Close UI",
+	Description = "Destroys the interface and disconnects listeners.",
+	Callback = function()
+		pcall(function()
+			Window:Destroy()
+		end)
+
+		if MeowConnection then
+			MeowConnection:Disconnect()
+			MeowConnection = nil
+		end
+
+		if FPSConnection then
+			FPSConnection:Disconnect()
+			FPSConnection = nil
+		end
+	end,
+})
+
 Tabs.Settings:AddButton({
 	Title = "Reset to defaults",
 	Description = "Restores the UI fields to the original values used by the script.",
@@ -378,14 +349,16 @@ local frameCount = 0
 local lastClock = os.clock()
 local fps = 0
 
-FYFPConfig.Debug.preRenderCon = RunService.PreRender:Connect(function()
+FPSConnection = RunService.Heartbeat:Connect(function()
 	frameCount += 1
 	local currentTime = os.clock()
-	if currentTime - lastClock >= 1 then
-		fps = frameCount
-		frameCount = 0
-		lastClock = currentTime
+	if currentTime - lastClock < 1 then
+		return
 	end
+
+	fps = frameCount
+	frameCount = 0
+	lastClock = currentTime
 end)
 
 local QLM = {
@@ -457,23 +430,20 @@ local function getDeviceData()
 	}
 end
 
-FYFPConfig.Debug.con = ReplicatedStorage:WaitForChild("meow").OnClientEvent:Connect(function(arg)
-	debugLog("meow received from server, type: " .. tostring(type(arg)))
+MeowConnection = MeowRemote.OnClientEvent:Connect(function(arg)
 
 	if type(arg) ~= "table" then
 		return
 	end
 
 	if arg.t == "device" and type(arg.token) == "number" then
-		debugLog("Sending device data to server, token: " .. arg.token)
-		ReplicatedStorage:WaitForChild("nya"):FireServer({
+		NyaRemote:FireServer({
 			t = "device",
 			token = arg.token,
 			tbl = getDeviceData(),
 		})
 	elseif arg.t == "metrics" and type(arg.token) == "number" then
-		debugLog("Sending metrics to server, token: " .. arg.token)
-		ReplicatedStorage:WaitForChild("nya"):FireServer({
+		NyaRemote:FireServer({
 			t = "metrics",
 			token = arg.token,
 			fps = getSetting("FPS"),
@@ -481,11 +451,8 @@ FYFPConfig.Debug.con = ReplicatedStorage:WaitForChild("meow").OnClientEvent:Conn
 			mem = getSetting("Memory"),
 			res = getSetting("ScreenRes"),
 		})
-		debugLog("Metrics sent")
 	end
 end)
-
-FYFPConfig.Debug.Rayfield = Fluent
 
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
