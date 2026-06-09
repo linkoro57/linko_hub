@@ -18,7 +18,6 @@ local Tabs = {
     Upgrades = Window:AddTab({ Title = "Upgrades", Icon = "info" }),
     Farm = Window:AddTab({ Title = "Farm", Icon = "bot" }),
     Sell = Window:AddTab({ Title = "Sell", Icon = "dollar-sign" }),
-    Speed = Window:AddTab({ Title = "Speed", Icon = "gauge" }),
     Webhook = Window:AddTab({ Title = "Webhook", Icon = "wifi" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
@@ -28,18 +27,77 @@ local Options = Fluent.Options
 ---
 --- Sélection de la base pour l'Auto Farm
 ---
-local selectedBase = "base15" -- Base par défaut
+local selectedBase = "base1"
+local BaseDropdown
+
+local function getAvailableBases()
+    local collectZones = workspace:FindFirstChild("CollectZones")
+    if not collectZones then
+        return {selectedBase}
+    end
+
+    local bases = {}
+    for _, child in ipairs(collectZones:GetChildren()) do
+        if child:IsA("BasePart") or child:IsA("Model") or child:IsA("Folder") then
+            table.insert(bases, child.Name)
+        end
+    end
+
+    table.sort(bases, function(a, b)
+        local aNumber = tonumber(a:match("%d+"))
+        local bNumber = tonumber(b:match("%d+"))
+        if aNumber and bNumber and aNumber ~= bNumber then
+            return aNumber < bNumber
+        end
+        return a < b
+    end)
+
+    if #bases == 0 then
+        table.insert(bases, selectedBase)
+    end
+
+    return bases
+end
+
+local function refreshBaseDropdown()
+    local bases = getAvailableBases()
+    if not table.find(bases, selectedBase) then
+        selectedBase = bases[1]
+        pcall(function()
+            BaseDropdown:SetValue(selectedBase)
+        end)
+    end
+
+    pcall(function()
+        if BaseDropdown and BaseDropdown.SetValues then
+            BaseDropdown:SetValues(bases)
+        end
+    end)
+end
 
 -- Dropdown pour choisir la base
-local BaseDropdown = Tabs.Farm:AddDropdown("BaseDropdown", {
+BaseDropdown = Tabs.Farm:AddDropdown("BaseDropdown", {
     Title = "Select Farming Base",
-    Values = {"base1", "base2", "base3", "base4", "base5", "base6", "base7", "base8", "base9", "base10", "base11", "base12", "base13", "base14", "base15","base16","base17"},
+    Values = getAvailableBases(),
     Multi = false,
-    Default = "base1",
+    Default = selectedBase,
     Callback = function(Value)
         selectedBase = Value
     end
 })
+
+task.spawn(function()
+    local collectZones = workspace:WaitForChild("CollectZones")
+    refreshBaseDropdown()
+    collectZones.ChildAdded:Connect(function()
+        task.wait(0.1)
+        refreshBaseDropdown()
+    end)
+    collectZones.ChildRemoved:Connect(function()
+        task.wait(0.1)
+        refreshBaseDropdown()
+    end)
+end)
 
 -- Bouton pour se téléporter à la base sélectionnée
 Tabs.Farm:AddButton({
@@ -316,76 +374,6 @@ Tabs.Misc:AddButton({
 })
 
 ---
---- Speed Upgrades
----
-Tabs.Upgrades:AddSection("Speed Upgrades")
-
-local upgrade = ReplicatedStorage
-    :WaitForChild("Packages")
-    :WaitForChild("_Index")
-    :WaitForChild("sleitnick_knit@1.7.0")
-    :WaitForChild("knit")
-    :WaitForChild("Services")
-    :WaitForChild("UpgradesService")
-    :WaitForChild("RF")
-    :WaitForChild("Upgrade")
-
-local amount = 1
-local delayTime = 0.5
-local running = false
-
-local IMS = Tabs.Upgrades:AddInput("IMS", {
-    Title = "Speed Amount",
-    Default = "1",
-    Placeholder = "Number",
-    Numeric = true,
-    Finished = false,
-    Callback = function(Value)
-        amount = tonumber(Value) or 1
-    end
-})
-
-IMS:OnChanged(function(Value)
-    amount = tonumber(Value) or 1
-end)
-
-local SMS = Tabs.Upgrades:AddSlider("SMS", {
-    Title = "Upgrade Interval",
-    Description = "",
-    Default = 1,
-    Min = 0,
-    Max = 5,
-    Rounding = 1,
-    Callback = function(Value)
-        delayTime = Value
-    end
-})
-
-SMS:OnChanged(function(Value)
-    delayTime = Value
-end)
-SMS:SetValue(1)
-
-local AMS = Tabs.Upgrades:AddToggle("AMS", {
-    Title = "Auto Upgrade Speed",
-    Default = false
-})
-
-AMS:OnChanged(function(state)
-    running = state
-    if not state then return end
-    task.spawn(function()
-        while running do
-            pcall(function()
-                upgrade:InvokeServer("MovementSpeed", amount)
-            end)
-            task.wait(delayTime)
-        end
-    end)
-end)
-Options.AMS:SetValue(false)
-
----
 --- Auto Buy Best Luckyblock
 ---
 local buy = ReplicatedStorage
@@ -634,63 +622,6 @@ Tabs.Misc:AddButton({
 })
 
 ---
---- Remove Bad Boss Touch Detectors
----
-local storedParts = {}
-local folder = workspace:WaitForChild("BossTouchDetectors")
-local RBTD = Tabs.Farm:AddToggle("RBTD", {
-    Title = "Remove Bad Boss Touch Detectors",
-    Description = "will make it so only the last boss can capture you",
-    Default = false
-})
-
-RBTD:OnChanged(function(state)
-    if state then
-        storedParts = {}
-        for _, obj in ipairs(folder:GetChildren()) do
-            if obj.Name ~= "base17" then
-                table.insert(storedParts, obj)
-                obj.Parent = nil
-            end
-        end
-    else
-        for _, obj in ipairs(storedParts) do
-            if obj then
-                obj.Parent = folder
-            end
-        end
-        storedParts = {}
-    end
-end)
-Options.RBTD:SetValue(false)
-
----
---- Teleport to End
----
-Tabs.Farm:AddButton({
-    Title = "Teleport to End",
-    Callback = function()
-        local modelsFolder = workspace:WaitForChild("RunningModels")
-        local target = workspace:WaitForChild("CollectZones"):WaitForChild("base17")
-        local targetCFrame = target.CFrame * CFrame.new(0, -5, 0)
-        for _, obj in ipairs(modelsFolder:GetChildren()) do
-            if obj:IsA("Model") then
-                if obj.PrimaryPart then
-                    obj:SetPrimaryPartCFrame(targetCFrame)
-                else
-                    local part = obj:FindFirstChildWhichIsA("BasePart")
-                    if part then
-                        part.CFrame = targetCFrame
-                    end
-                end
-            elseif obj:IsA("BasePart") then
-                obj.CFrame = targetCFrame
-            end
-        end
-    end
-})
-
----
 --- Auto Recup Cash
 ---
 local PlaceBest = ReplicatedStorage
@@ -723,132 +654,6 @@ AutoRecupEyeToggle:OnChanged(function(state)
     end
 end)
 Options.AutoRecupEyeToggle:SetValue(false)
-
----
---- Speed Section
----
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local running = false
-local luckyBlockSpeed = 1000
-local playerSpeed = 23
-local brainrotSpeed = 1000
-local originalSpeed = nil
-local currentModel = nil
-
-local function getMyModel()
-    local folder = workspace:FindFirstChild("RunningModels")
-    if not folder then return nil end
-    for _, model in ipairs(folder:GetChildren()) do
-        if model:GetAttribute("OwnerId") == player.UserId then
-            return model
-        end
-    end
-    return nil
-end
-
-local function applySpeed()
-    local methods = Options.SpeedMethod.Value
-    local character = workspace:FindFirstChild(player.Name)
-    local humanoid = character and character:FindFirstChild("Humanoid")
-    if methods["Luckyblock"] then
-        local model = getMyModel()
-        if model then
-            if model ~= currentModel then
-                currentModel = model
-                originalSpeed = model:GetAttribute("MovementSpeed")
-            end
-            if originalSpeed == nil then
-                originalSpeed = model:GetAttribute("MovementSpeed")
-            end
-            model:SetAttribute("MovementSpeed", luckyBlockSpeed)
-        end
-    end
-    if humanoid then
-        local hasBrainrot = character:GetAttribute("BrainrotType") ~= nil
-        if hasBrainrot and methods["Brainrot"] then
-            humanoid.WalkSpeed = brainrotSpeed
-        elseif not hasBrainrot and methods["Player"] then
-            humanoid.WalkSpeed = playerSpeed
-        end
-    end
-end
-
-task.spawn(function()
-    while true do
-        if running then
-            applySpeed()
-        end
-        task.wait(0.2)
-    end
-end)
-
-local SpeedMethod = Tabs.Speed:AddDropdown("SpeedMethod", {
-    Title = "Speed Method",
-    Values = {"Luckyblock", "Brainrot", "Player"},
-    Multi = true,
-    Default = {"Luckyblock"},
-})
-
-local Toggle = Tabs.Speed:AddToggle("MovementToggle", {
-    Title = "Enable Custom Speed",
-    Default = false
-})
-
-Toggle:OnChanged(function()
-    running = Options.MovementToggle.Value
-    if not running then
-        local model = getMyModel()
-        if model and originalSpeed ~= nil then
-            model:SetAttribute("MovementSpeed", originalSpeed)
-        end
-        originalSpeed = nil
-        currentModel = nil
-        local character = workspace:FindFirstChild(player.Name)
-        if character then
-            local humanoid = character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.WalkSpeed = 23
-            end
-        end
-    end
-end)
-
-local LuckyBlockSlider = Tabs.Speed:AddSlider("LuckyBlockSlider", {
-    Title = "Lucky Block Speed",
-    Default = 1000,
-    Min = 50,
-    Max = 3000,
-    Rounding = 0
-})
-
-LuckyBlockSlider:OnChanged(function(Value)
-    luckyBlockSpeed = Value
-end)
-
-local BrainrotSlider = Tabs.Speed:AddSlider("BrainrotSlider", {
-    Title = "Brainrot Speed",
-    Default = 1000,
-    Min = 50,
-    Max = 3000,
-    Rounding = 0
-})
-
-BrainrotSlider:OnChanged(function(Value)
-    brainrotSpeed = Value
-end)
-
-local PlayerSlider = Tabs.Speed:AddSlider("PlayerSlider", {
-    Title = "Player Speed",
-    Default = 23,
-    Min = 16,
-    Max = 500,
-    Rounding = 0
-})
-
-PlayerSlider:OnChanged(function(Value)
-    playerSpeed = Value
-end)
 
 ---
 --- Sell Section
