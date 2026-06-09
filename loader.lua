@@ -1,5 +1,14 @@
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
 local Players = game:GetService("Players")
-local player = Players.LocalPlayer
+local player = Players.LocalPlayer or Players.PlayerAdded:Wait()
+
+player:WaitForChild("PlayerGui")
+if not player.Character then
+    player.CharacterAdded:Wait()
+end
 
 local HUB_BASE = "https://raw.githubusercontent.com/linkoro57/linko_hub/main/"
 
