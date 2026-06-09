@@ -2,351 +2,490 @@
 local Fluent, SaveManager, InterfaceManager
 
 local function loadRemoteModule(url, label)
-    if type(loadstring) ~= "function" then
-        return nil, "loadstring is not available"
-    end
+	if type(loadstring) ~= "function" then
+		return nil, "loadstring is not available"
+	end
 
-    local fetchOk, source = pcall(function()
-        return game:HttpGet(url, true)
-    end)
+	local fetchOk, source = pcall(function()
+		return game:HttpGet(url, true)
+	end)
 
-    if not fetchOk or type(source) ~= "string" or source == "" then
-        return nil, "download failed: " .. tostring(source)
-    end
+	if not fetchOk or type(source) ~= "string" or source == "" then
+		return nil, "download failed: " .. tostring(source)
+	end
 
-    local chunk, compileErr = loadstring(source)
-    if type(chunk) ~= "function" then
-        return nil, "compile failed: " .. tostring(compileErr)
-    end
+	local chunk, compileErr = loadstring(source)
+	if type(chunk) ~= "function" then
+		return nil, "compile failed: " .. tostring(compileErr)
+	end
 
-    local runOk, result = pcall(chunk)
-    if not runOk then
-        return nil, "runtime failed: " .. tostring(result)
-    end
+	local runOk, result = pcall(chunk)
+	if not runOk then
+		return nil, "runtime failed: " .. tostring(result)
+	end
 
-    if result == nil then
-        return nil, label .. " returned nil"
-    end
+	if result == nil then
+		return nil, label .. " returned nil"
+	end
 
-    return result
+	return result
 end
 
-local success, err = pcall(function()
-    Fluent, err = loadRemoteModule("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua", "Fluent")
-    if not Fluent then error(err) end
+local uiSuccess, uiErr = pcall(function()
+	local err
+	Fluent, err = loadRemoteModule("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua", "Fluent")
+	if not Fluent then
+		error(err)
+	end
 
-    SaveManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua", "SaveManager")
-    if not SaveManager then error(err) end
+	SaveManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua", "SaveManager")
+	if not SaveManager then
+		error(err)
+	end
 
-    InterfaceManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua", "InterfaceManager")
-    if not InterfaceManager then error(err) end
+	InterfaceManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua", "InterfaceManager")
+	if not InterfaceManager then
+		error(err)
+	end
 end)
 
-if not success or not Fluent then
-    warn("[Mango Hub] Failed to load Fluent UI: " .. tostring(err))
-    return
+if not uiSuccess or not Fluent then
+	warn("[Linko Hub] Failed to load Fluent UI: " .. tostring(uiErr))
+	return
 end
 
 local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
-local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+local Stats = game:GetService("Stats")
+local TextService = game:GetService("TextService")
+local UserInputService = game:GetService("UserInputService")
+
+local FYFPConfig = {
+	FPS = {
+		Enabled = false,
+		Value = 400,
+		Fluctuating = true,
+	},
+	Memory = {
+		Enabled = false,
+		Value = 1024,
+		Fluctuating = true,
+	},
+	ScreenRes = {
+		Enabled = false,
+		Width = 1920,
+		Height = 1080,
+	},
+	GQ = {
+		Enabled = false,
+		Value = 5,
+	},
+	Debug = {
+		Log = false,
+		Rayfield = nil,
+		con = nil,
+		preRenderCon = nil,
+	},
+}
+
+local function debugLog(...)
+	if FYFPConfig.Debug.Log then
+		print(...)
+	end
+end
+
+local function notify(title, content, image)
+	Fluent:Notify({
+		Title = title,
+		Content = content,
+		Duration = 5,
+		Image = image or "info",
+	})
+end
+
+local function safeSetValue(optionName, value)
+	pcall(function()
+		local option = Fluent.Options and Fluent.Options[optionName]
+		if option and option.SetValue then
+			option:SetValue(value)
+		end
+	end)
+end
+
+local function clampNumber(value, minValue, maxValue)
+	return math.clamp(math.floor(tonumber(value) or minValue), minValue, maxValue)
+end
+
+local function fluctuateInteger(baseValue, spread, minValue, maxValue)
+	local value = math.random(baseValue - spread, baseValue + spread)
+	return math.clamp(value, minValue, maxValue)
+end
 
 local Window = Fluent:CreateWindow({
-    Title = "Mango Hub",
-    SubTitle = "Flex Your FPS and Your Ping",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(540, 420),
-    Acrylic = false,
-    Theme = "Darker",
-    MinimizeKey = Enum.KeyCode.LeftControl
+	Title = "Flex your FPS and Ping",
+	SubTitle = "Fluent edition",
+	TabWidth = 170,
+	Size = UDim2.fromOffset(560, 430),
+	Acrylic = false,
+	Theme = "Darker",
+	MinimizeKey = Enum.KeyCode.LeftControl,
 })
 
 local Tabs = {
-    Spoof = Window:AddTab({ Title = "Spoof", Icon = "activity" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+	Overview = Window:AddTab({ Title = "Overview", Icon = "layout-dashboard" }),
+	Spoof = Window:AddTab({ Title = "Spoof", Icon = "sliders-horizontal" }),
+	Debug = Window:AddTab({ Title = "Debug", Icon = "bug" }),
+	Settings = Window:AddTab({ Title = "Settings", Icon = "settings" }),
 }
 
-local state = {
-    fpsEnabled = false,
-    fpsValue = 240,
-    fpsFluctuating = false,
-    memoryEnabled = false,
-    memoryValue = 512,
-    memoryFluctuating = false,
-    resolutionEnabled = false,
-    resolutionWidth = 1920,
-    resolutionHeight = 1080,
-    resolutionFluctuating = false,
-    graphicsEnabled = false,
-    graphicsQuality = 10
-}
+local Options = Fluent.Options
 
-local rng = Random.new()
-local originalTexts = {}
+Tabs.Overview:AddParagraph({
+	Title = "What this does",
+	Content = "Spoofs the values returned to the server for FPS, memory, screen resolution, and graphics quality. Fluctuating mode adds small random movement to the spoofed value.",
+})
 
-local function asNumber(value, fallback)
-    local number = tonumber(value)
-    if not number then
-        return fallback
-    end
-    return number
-end
-
-local function clampInteger(value, minValue, maxValue)
-    return math.clamp(math.floor(value + 0.5), minValue, maxValue)
-end
-
-local function getFluctuated(baseValue, spread, minValue, maxValue)
-    return clampInteger(baseValue + rng:NextInteger(-spread, spread), minValue, maxValue)
-end
-
-local function getSpoofValues()
-    local fps = state.fpsValue
-    local memory = state.memoryValue
-    local width = state.resolutionWidth
-    local height = state.resolutionHeight
-
-    if state.fpsFluctuating then
-        fps = getFluctuated(fps, 8, 1, 9999)
-    end
-
-    if state.memoryFluctuating then
-        memory = getFluctuated(memory, 48, 1, 999999)
-    end
-
-    if state.resolutionFluctuating then
-        width = getFluctuated(width, 16, 100, 99999)
-        height = getFluctuated(height, 9, 100, 99999)
-    end
-
-    return fps, memory, width, height, state.graphicsQuality
-end
-
-local function safeText(object)
-    local ok, text = pcall(function()
-        return object.Text
-    end)
-    if ok and type(text) == "string" then
-        return text
-    end
-    return nil
-end
-
-local function setText(object, text)
-    pcall(function()
-        object.Text = text
-    end)
-end
-
-local function shouldSpoofText(text)
-    local lower = text:lower()
-    return lower:find("fps", 1, true)
-        or lower:find("memory", 1, true)
-        or lower:find("mem", 1, true)
-        or lower:find("resolution", 1, true)
-        or lower:find("screen", 1, true)
-        or lower:find("graphic", 1, true)
-        or lower:find("quality", 1, true)
-end
-
-local function spoofedText(originalText)
-    local lower = originalText:lower()
-    local fps, memory, width, height, quality = getSpoofValues()
-
-    if state.fpsEnabled and lower:find("fps", 1, true) then
-        return string.format("FPS: %d", fps)
-    end
-
-    if state.memoryEnabled and (lower:find("memory", 1, true) or lower:find("mem", 1, true)) then
-        return string.format("Memory: %d MB", memory)
-    end
-
-    if state.resolutionEnabled and (lower:find("resolution", 1, true) or lower:find("screen", 1, true)) then
-        return string.format("Screen Resolution: %dx%d", width, height)
-    end
-
-    if state.graphicsEnabled and (lower:find("graphic", 1, true) or lower:find("quality", 1, true)) then
-        return string.format("Graphic Quality: %d", quality)
-    end
-
-    return nil
-end
-
-local function scanContainer(container)
-    if not container then
-        return
-    end
-
-    for _, object in ipairs(container:GetDescendants()) do
-        if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
-            local text = safeText(object)
-            if text and (originalTexts[object] or shouldSpoofText(text)) then
-                originalTexts[object] = originalTexts[object] or text
-                local replacement = spoofedText(originalTexts[object])
-                if replacement then
-                    setText(object, replacement)
-                else
-                    setText(object, originalTexts[object])
-                end
-            end
-        end
-    end
-end
-
-local function applyGraphicQuality()
-    if not state.graphicsEnabled then
-        return
-    end
-
-    pcall(function()
-        settings().Rendering.QualityLevel = Enum.QualityLevel["Level" .. tostring(state.graphicsQuality)]
-    end)
-
-    pcall(function()
-        UserSettings().GameSettings.SavedQualityLevel = Enum.SavedQualitySetting["QualityLevel" .. tostring(state.graphicsQuality)]
-    end)
-end
-
-local function applySpoofs()
-    scanContainer(LocalPlayer:FindFirstChild("PlayerGui"))
-
-    pcall(function()
-        scanContainer(CoreGui)
-    end)
-
-    applyGraphicQuality()
-end
-
-task.spawn(function()
-    while true do
-        applySpoofs()
-        task.wait(0.35)
-    end
-end)
-
-Tabs.Spoof:AddParagraph({
-    Title = "How it works",
-    Content = "Changes matching FPS, memory, resolution, and graphics quality text locally. Fluctuating adds small random movement to the displayed value."
+Tabs.Overview:AddSection("Quick Notes")
+Tabs.Overview:AddParagraph({
+	Title = "Server flow",
+	Content = "The game can send a device check or a metrics request. This script answers both locally and uses the values you set in the Spoof tab.",
 })
 
 Tabs.Spoof:AddSection("FPS")
-Tabs.Spoof:AddToggle("FpsSpoofToggle", {
-    Title = "Enable FPS Spoof",
-    Default = false
-}):OnChanged(function(value)
-    state.fpsEnabled = value
+local fpsToggle = Tabs.Spoof:AddToggle("EnableFPS", {
+	Title = "Enable spoofed FPS",
+	Default = false,
+})
+fpsToggle:OnChanged(function(value)
+	FYFPConfig.FPS.Enabled = value
 end)
 
-Tabs.Spoof:AddInput("FpsSpoofValue", {
-    Title = "FPS Value",
-    Default = "240",
-    Placeholder = "240",
-    Numeric = true,
-    Finished = false,
-    Callback = function(value)
-        state.fpsValue = clampInteger(asNumber(value, 240), 1, 9999)
-    end
+local fpsInput = Tabs.Spoof:AddInput("FPSValue", {
+	Title = "FPS value",
+	Default = "400",
+	Placeholder = "Spoofed FPS amount",
+	Numeric = true,
+	Finished = false,
+	Callback = function(value)
+		if tonumber(value) == nil then
+			safeSetValue("FPSValue", tostring(FYFPConfig.FPS.Value))
+			notify("Error", "FPS must be a number", "circle-x")
+			return
+		end
+
+		local newValue = clampNumber(value, 1, 3500)
+		if newValue ~= tonumber(value) then
+			safeSetValue("FPSValue", tostring(newValue))
+			notify("Error", "FPS can't be higher than 3500", "circle-x")
+		end
+
+		FYFPConfig.FPS.Value = newValue
+	end,
 })
 
-Tabs.Spoof:AddToggle("FpsFluctuatingToggle", {
-    Title = "Enable Fluctuating",
-    Default = false
-}):OnChanged(function(value)
-    state.fpsFluctuating = value
+local fpsFluctuatingToggle = Tabs.Spoof:AddToggle("EnableFluctuatingFPS", {
+	Title = "Enable fluctuating FPS",
+	Default = true,
+})
+fpsFluctuatingToggle:OnChanged(function(value)
+	FYFPConfig.FPS.Fluctuating = value
 end)
 
 Tabs.Spoof:AddSection("Memory")
-Tabs.Spoof:AddToggle("MemorySpoofToggle", {
-    Title = "Enable Memory Spoof",
-    Default = false
-}):OnChanged(function(value)
-    state.memoryEnabled = value
+local memoryToggle = Tabs.Spoof:AddToggle("EnableMemory", {
+	Title = "Enable spoofed memory",
+	Default = false,
+})
+memoryToggle:OnChanged(function(value)
+	FYFPConfig.Memory.Enabled = value
 end)
 
-Tabs.Spoof:AddInput("MemorySpoofValue", {
-    Title = "Memory Value (MB)",
-    Default = "512",
-    Placeholder = "512",
-    Numeric = true,
-    Finished = false,
-    Callback = function(value)
-        state.memoryValue = clampInteger(asNumber(value, 512), 1, 999999)
-    end
+local memoryInput = Tabs.Spoof:AddInput("MemoryValue", {
+	Title = "Memory value",
+	Default = "1024",
+	Placeholder = "Spoofed memory amount",
+	Numeric = true,
+	Finished = false,
+	Callback = function(value)
+		if tonumber(value) == nil then
+			safeSetValue("MemoryValue", tostring(FYFPConfig.Memory.Value))
+			notify("Error", "Memory must be a number", "circle-x")
+			return
+		end
+
+		FYFPConfig.Memory.Value = clampNumber(value, 1, 999999)
+	end,
 })
 
-Tabs.Spoof:AddToggle("MemoryFluctuatingToggle", {
-    Title = "Enable Fluctuating",
-    Default = false
-}):OnChanged(function(value)
-    state.memoryFluctuating = value
+local memoryFluctuatingToggle = Tabs.Spoof:AddToggle("EnableFluctuatingMemory", {
+	Title = "Enable fluctuating memory",
+	Default = true,
+})
+memoryFluctuatingToggle:OnChanged(function(value)
+	FYFPConfig.Memory.Fluctuating = value
 end)
 
-Tabs.Spoof:AddSection("Screen Resolution")
-Tabs.Spoof:AddToggle("ResolutionSpoofToggle", {
-    Title = "Enable Screen Resolution Spoof",
-    Default = false
-}):OnChanged(function(value)
-    state.resolutionEnabled = value
+Tabs.Spoof:AddSection("Display")
+local screenToggle = Tabs.Spoof:AddToggle("EnableScreenRes", {
+	Title = "Enable spoofed screen resolution",
+	Default = false,
+})
+screenToggle:OnChanged(function(value)
+	FYFPConfig.ScreenRes.Enabled = value
 end)
 
-Tabs.Spoof:AddInput("ResolutionWidthValue", {
-    Title = "Width",
-    Default = "1920",
-    Placeholder = "1920",
-    Numeric = true,
-    Finished = false,
-    Callback = function(value)
-        state.resolutionWidth = clampInteger(asNumber(value, 1920), 100, 99999)
-    end
+local screenWidthInput = Tabs.Spoof:AddInput("ScreenResWidth", {
+	Title = "Screen width",
+	Default = "1920",
+	Placeholder = "Spoofed screen width",
+	Numeric = true,
+	Finished = false,
+	Callback = function(value)
+		if tonumber(value) == nil then
+			safeSetValue("ScreenResWidth", tostring(FYFPConfig.ScreenRes.Width))
+			notify("Error", "Screen width must be a number", "circle-x")
+			return
+		end
+
+		FYFPConfig.ScreenRes.Width = clampNumber(value, 1, 99999)
+	end,
 })
 
-Tabs.Spoof:AddInput("ResolutionHeightValue", {
-    Title = "Height",
-    Default = "1080",
-    Placeholder = "1080",
-    Numeric = true,
-    Finished = false,
-    Callback = function(value)
-        state.resolutionHeight = clampInteger(asNumber(value, 1080), 100, 99999)
-    end
+local screenHeightInput = Tabs.Spoof:AddInput("ScreenResHeight", {
+	Title = "Screen height",
+	Default = "1080",
+	Placeholder = "Spoofed screen height",
+	Numeric = true,
+	Finished = false,
+	Callback = function(value)
+		if tonumber(value) == nil then
+			safeSetValue("ScreenResHeight", tostring(FYFPConfig.ScreenRes.Height))
+			notify("Error", "Screen height must be a number", "circle-x")
+			return
+		end
+
+		FYFPConfig.ScreenRes.Height = clampNumber(value, 1, 99999)
+	end,
 })
 
-Tabs.Spoof:AddToggle("ResolutionFluctuatingToggle", {
-    Title = "Enable Fluctuating",
-    Default = false
-}):OnChanged(function(value)
-    state.resolutionFluctuating = value
+Tabs.Spoof:AddSection("Graphics Quality")
+local gqToggle = Tabs.Spoof:AddToggle("EnableGQ", {
+	Title = "Enable spoofed graphics quality",
+	Default = false,
+})
+gqToggle:OnChanged(function(value)
+	FYFPConfig.GQ.Enabled = value
 end)
 
-Tabs.Spoof:AddSection("Graphic Quality")
-Tabs.Spoof:AddToggle("GraphicQualitySpoofToggle", {
-    Title = "Enable Graphic Quality Spoof",
-    Default = false
-}):OnChanged(function(value)
-    state.graphicsEnabled = value
-    applyGraphicQuality()
-end)
-
-Tabs.Spoof:AddSlider("GraphicQualityValue", {
-    Title = "Graphic Quality",
-    Default = 10,
-    Min = 1,
-    Max = 10,
-    Rounding = 0,
-    Callback = function(value)
-        state.graphicsQuality = clampInteger(value, 1, 10)
-        applyGraphicQuality()
-    end
+local gqSlider = Tabs.Spoof:AddSlider("GQValue", {
+	Title = "Graphics quality",
+	Description = "0 = Automatic",
+	Default = 5,
+	Min = 0,
+	Max = 10,
+	Rounding = 0,
+	Callback = function(value)
+		FYFPConfig.GQ.Value = clampNumber(value, 0, 10)
+	end,
 })
 
+Tabs.Debug:AddSection("Logging")
+Tabs.Debug:AddToggle("EnableLogging", {
+	Title = "Enable console logging",
+	Default = false,
+}):OnChanged(function(value)
+	FYFPConfig.Debug.Log = value
+end)
+
+Tabs.Debug:AddButton({
+	Title = "Print current spoof state",
+	Description = "Writes the current configuration to the console.",
+	Callback = function()
+		print("[Flex your FPS and Ping] Current state:")
+		print("FPS:", FYFPConfig.FPS.Enabled, FYFPConfig.FPS.Value, FYFPConfig.FPS.Fluctuating)
+		print("Memory:", FYFPConfig.Memory.Enabled, FYFPConfig.Memory.Value, FYFPConfig.Memory.Fluctuating)
+		print("ScreenRes:", FYFPConfig.ScreenRes.Enabled, FYFPConfig.ScreenRes.Width, FYFPConfig.ScreenRes.Height)
+		print("GQ:", FYFPConfig.GQ.Enabled, FYFPConfig.GQ.Value)
+	end,
+})
+
+Tabs.Debug:AddButton({
+	Title = "Close UI",
+	Description = "Destroys the interface and disconnects listeners.",
+	Callback = function()
+		pcall(function()
+			Window:Destroy()
+		end)
+
+		if FYFPConfig.Debug.con then
+			FYFPConfig.Debug.con:Disconnect()
+			FYFPConfig.Debug.con = nil
+		end
+
+		if FYFPConfig.Debug.preRenderCon then
+			FYFPConfig.Debug.preRenderCon:Disconnect()
+			FYFPConfig.Debug.preRenderCon = nil
+		end
+	end,
+})
+
+Tabs.Settings:AddSection("Interface")
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
-InterfaceManager:SetFolder("MangoHub")
-SaveManager:SetFolder("MangoHub/flex-fps-ping")
+InterfaceManager:SetFolder("LinkoHub")
+SaveManager:SetFolder("LinkoHub/FlexYourFpsAndPing")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
+
+Tabs.Settings:AddSection("Defaults")
+Tabs.Settings:AddButton({
+	Title = "Reset to defaults",
+	Description = "Restores the UI fields to the original values used by the script.",
+	Callback = function()
+		FYFPConfig.FPS.Enabled = false
+		FYFPConfig.FPS.Value = 400
+		FYFPConfig.FPS.Fluctuating = true
+		FYFPConfig.Memory.Enabled = false
+		FYFPConfig.Memory.Value = 1024
+		FYFPConfig.Memory.Fluctuating = true
+		FYFPConfig.ScreenRes.Enabled = false
+		FYFPConfig.ScreenRes.Width = 1920
+		FYFPConfig.ScreenRes.Height = 1080
+		FYFPConfig.GQ.Enabled = false
+		FYFPConfig.GQ.Value = 5
+
+		safeSetValue("EnableFPS", false)
+		safeSetValue("FPSValue", "400")
+		safeSetValue("EnableFluctuatingFPS", true)
+		safeSetValue("EnableMemory", false)
+		safeSetValue("MemoryValue", "1024")
+		safeSetValue("EnableFluctuatingMemory", true)
+		safeSetValue("EnableScreenRes", false)
+		safeSetValue("ScreenResWidth", "1920")
+		safeSetValue("ScreenResHeight", "1080")
+		safeSetValue("EnableGQ", false)
+		safeSetValue("GQValue", 5)
+
+		notify("Reset", "Values were restored to defaults.", "refresh-cw")
+	end,
+})
+
+local frameCount = 0
+local lastClock = os.clock()
+local fps = 0
+
+FYFPConfig.Debug.preRenderCon = RunService.PreRender:Connect(function()
+	frameCount += 1
+	local currentTime = os.clock()
+	if currentTime - lastClock >= 1 then
+		fps = frameCount
+		frameCount = 0
+		lastClock = currentTime
+	end
+end)
+
+local QLM = {
+	["0"] = Enum.SavedQualitySetting.Automatic,
+	["1"] = Enum.SavedQualitySetting.QualityLevel1,
+	["2"] = Enum.SavedQualitySetting.QualityLevel2,
+	["3"] = Enum.SavedQualitySetting.QualityLevel3,
+	["4"] = Enum.SavedQualitySetting.QualityLevel4,
+	["5"] = Enum.SavedQualitySetting.QualityLevel5,
+	["6"] = Enum.SavedQualitySetting.QualityLevel6,
+	["7"] = Enum.SavedQualitySetting.QualityLevel7,
+	["8"] = Enum.SavedQualitySetting.QualityLevel8,
+	["9"] = Enum.SavedQualitySetting.QualityLevel9,
+	["10"] = Enum.SavedQualitySetting.QualityLevel10,
+}
+
+local function getDefaultSetting(flag)
+	if flag == "FPS" then
+		return fps
+	elseif flag == "Memory" then
+		return Stats:GetTotalMemoryUsageMb()
+	elseif flag == "ScreenRes" then
+		return workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(0, 0)
+	elseif flag == "GQ" then
+		return UserSettings():GetService("UserGameSettings").SavedQualityLevel
+	end
+
+	return nil
+end
+
+local function getSetting(flag)
+	local config = FYFPConfig[flag]
+	if not config.Enabled then
+		return getDefaultSetting(flag)
+	end
+
+	if config.Fluctuating ~= nil and config.Fluctuating then
+		local value = config.Value
+		if flag == "FPS" then
+			return fluctuateInteger(value, 10, 1, 3500)
+		elseif flag == "Memory" then
+			return math.max(1, math.random() * 1.8 + (value - 0.9))
+		end
+	end
+
+	if flag == "ScreenRes" then
+		return Vector2.new(config.Width, config.Height)
+	end
+
+	if flag == "GQ" then
+		return QLM[tostring(config.Value)]
+	end
+
+	return config.Value
+end
+
+local function getDeviceData()
+	return {
+		A = UserInputService.VREnabled,
+		B = GuiService:IsTenFootInterface(),
+		C = GuiService.IsWindows,
+		D = "0.716.0.7160875",
+		E = UserInputService.GyroscopeEnabled or UserInputService.AccelerometerEnabled,
+		F = UserInputService.TouchEnabled,
+		G = UserInputService.KeyboardEnabled,
+		H = UserInputService.MouseEnabled,
+		I = TextService:GetTextSize(utf8.char(65535), 16, "SourceSans", Vector2.one * 1000)
+			~= TextService:GetTextSize(utf8.char(63743), 16, "SourceSans", Vector2.one * 1000),
+	}
+end
+
+FYFPConfig.Debug.con = ReplicatedStorage:WaitForChild("meow").OnClientEvent:Connect(function(arg)
+	debugLog("meow received from server, type: " .. tostring(type(arg)))
+
+	if type(arg) ~= "table" then
+		return
+	end
+
+	if arg.t == "device" and type(arg.token) == "number" then
+		debugLog("Sending device data to server, token: " .. arg.token)
+		ReplicatedStorage:WaitForChild("nya"):FireServer({
+			t = "device",
+			token = arg.token,
+			tbl = getDeviceData(),
+		})
+	elseif arg.t == "metrics" and type(arg.token) == "number" then
+		debugLog("Sending metrics to server, token: " .. arg.token)
+		ReplicatedStorage:WaitForChild("nya"):FireServer({
+			t = "metrics",
+			token = arg.token,
+			fps = getSetting("FPS"),
+			gfx = getSetting("GQ"),
+			mem = getSetting("Memory"),
+			res = getSetting("ScreenRes"),
+		})
+		debugLog("Metrics sent")
+	end
+end)
+
+FYFPConfig.Debug.Rayfield = Fluent
 
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
