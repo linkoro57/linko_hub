@@ -1,58 +1,14 @@
--- Fluent UI Setup
-local Fluent, SaveManager, InterfaceManager
+local HubUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/linkoro57/linko_hub/main/fluent_ui_shared.lua", true))()
+local bundle, uiErr = HubUI.loadBundle()
 
-local function loadRemoteModule(url, label)
-	if type(loadstring) ~= "function" then
-		return nil, "loadstring is not available"
-	end
-
-	local fetchOk, source = pcall(function()
-		return game:HttpGet(url, true)
-	end)
-
-	if not fetchOk or type(source) ~= "string" or source == "" then
-		return nil, "download failed: " .. tostring(source)
-	end
-
-	local chunk, compileErr = loadstring(source)
-	if type(chunk) ~= "function" then
-		return nil, "compile failed: " .. tostring(compileErr)
-	end
-
-	local runOk, result = pcall(chunk)
-	if not runOk then
-		return nil, "runtime failed: " .. tostring(result)
-	end
-
-	if result == nil then
-		return nil, label .. " returned nil"
-	end
-
-	return result
-end
-
-local uiSuccess, uiErr = pcall(function()
-	local err
-	Fluent, err = loadRemoteModule("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua", "Fluent")
-	if not Fluent then
-		error(err)
-	end
-
-	SaveManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua", "SaveManager")
-	if not SaveManager then
-		error(err)
-	end
-
-	InterfaceManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua", "InterfaceManager")
-	if not InterfaceManager then
-		error(err)
-	end
-end)
-
-if not uiSuccess or not Fluent then
+if not bundle then
 	warn("[Linko Hub] Failed to load Fluent UI: " .. tostring(uiErr))
 	return
 end
+
+local Fluent = bundle.Fluent
+local SaveManager = bundle.SaveManager
+local InterfaceManager = bundle.InterfaceManager
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -115,15 +71,7 @@ local function fluctuateInteger(baseValue, spread, minValue, maxValue)
 	return math.clamp(value, minValue, maxValue)
 end
 
-local Window = Fluent:CreateWindow({
-	Title = "Flex your FPS and Ping",
-	SubTitle = "Fluent edition",
-	TabWidth = 170,
-	Size = UDim2.fromOffset(560, 430),
-	Acrylic = false,
-	Theme = "Darker",
-	MinimizeKey = Enum.KeyCode.LeftControl,
-})
+local Window = HubUI.createWindow(Fluent, "Flex your FPS and Ping", "Fluent edition", UDim2.fromOffset(560, 430), 170)
 
 local Tabs = {
 	Overview = Window:AddTab({ Title = "Overview", Icon = "layout-dashboard" }),
