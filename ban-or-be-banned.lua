@@ -1,14 +1,51 @@
-local HubUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/linkoro57/linko_hub/main/fluent_ui_shared.lua", true))()
-local bundle, err = HubUI.loadBundle()
+-- Secure loading of Fluent UI
+local Fluent, SaveManager, InterfaceManager
 
-if not bundle then
+local function loadRemoteModule(url, label)
+    if type(loadstring) ~= "function" then
+        return nil, "loadstring is not available"
+    end
+
+    local fetchOk, source = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+
+    if not fetchOk or type(source) ~= "string" or source == "" then
+        return nil, "download failed: " .. tostring(source)
+    end
+
+    local chunk, compileErr = loadstring(source)
+    if type(chunk) ~= "function" then
+        return nil, "compile failed: " .. tostring(compileErr)
+    end
+
+    local runOk, result = pcall(chunk)
+    if not runOk then
+        return nil, "runtime failed: " .. tostring(result)
+    end
+
+    if result == nil then
+        return nil, label .. " returned nil"
+    end
+
+    return result
+end
+
+local success, err = pcall(function()
+    Fluent, err = loadRemoteModule("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua", "Fluent")
+    if not Fluent then error(err) end
+
+    SaveManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua", "SaveManager")
+    if not SaveManager then error(err) end
+
+    InterfaceManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua", "InterfaceManager")
+    if not InterfaceManager then error(err) end
+end)
+
+if not success or not Fluent then
     warn("[linkoro57] Failed to load Fluent UI: " .. tostring(err))
     return
 end
-
-local Fluent = bundle.Fluent
-local SaveManager = bundle.SaveManager
-local InterfaceManager = bundle.InterfaceManager
 
 -- Services
 local Players = game:GetService("Players")
@@ -16,7 +53,18 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
-local Window = HubUI.createWindow(Fluent, "Mango Hub", "Ban or Be Banned", UDim2.fromOffset(520, 340), 180)
+-- ============================================================
+-- Fluent UI Setup (Larger Window)
+-- ============================================================
+local Window = Fluent:CreateWindow({
+    Title = "Mango Hub",
+    SubTitle = "Ban or Be Banned",
+    TabWidth = 180,  -- Increased tab width
+    Size = UDim2.fromOffset(500, 300),  -- Larger window size
+    Acrylic = false,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
 
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "dollar-sign" }),
@@ -24,12 +72,6 @@ local Tabs = {
 }
 
 local Options = Fluent.Options
-
-HubUI.applyHeader(
-    Tabs.Main,
-    "Overview",
-    "Makes the coin collection loop feel cleaner and more responsive while keeping the controls simple and easy to read."
-)
 
 -- ============================================================
 -- Global Variables

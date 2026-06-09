@@ -1,16 +1,62 @@
-local HubUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/linkoro57/linko_hub/main/fluent_ui_shared.lua", true))()
-local bundle, uiErr = HubUI.loadBundle()
+-- Fluent UI Setup
+local Fluent, SaveManager, InterfaceManager
 
-if not bundle then
+local function loadRemoteModule(url, label)
+    if type(loadstring) ~= "function" then
+        return nil, "loadstring is not available"
+    end
+
+    local fetchOk, source = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+
+    if not fetchOk or type(source) ~= "string" or source == "" then
+        return nil, "download failed: " .. tostring(source)
+    end
+
+    local chunk, compileErr = loadstring(source)
+    if type(chunk) ~= "function" then
+        return nil, "compile failed: " .. tostring(compileErr)
+    end
+
+    local runOk, result = pcall(chunk)
+    if not runOk then
+        return nil, "runtime failed: " .. tostring(result)
+    end
+
+    if result == nil then
+        return nil, label .. " returned nil"
+    end
+
+    return result
+end
+
+local uiSuccess, uiErr = pcall(function()
+    local err
+    Fluent, err = loadRemoteModule("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua", "Fluent")
+    if not Fluent then error(err) end
+
+    SaveManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua", "SaveManager")
+    if not SaveManager then error(err) end
+
+    InterfaceManager, err = loadRemoteModule("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua", "InterfaceManager")
+    if not InterfaceManager then error(err) end
+end)
+
+if not uiSuccess or not Fluent then
     warn("[Mango Hub] Failed to load Fluent UI: " .. tostring(uiErr))
     return
 end
 
-local Fluent = bundle.Fluent
-local SaveManager = bundle.SaveManager
-local InterfaceManager = bundle.InterfaceManager
-
-local Window = HubUI.createWindow(Fluent, "Mango Hub", "Be a Lucky Block", UDim2.fromOffset(560, 450), 160)
+local Window = Fluent:CreateWindow({
+    Title = "Mango Hub",
+    SubTitle = "Be a Lucky Block",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(550, 430),
+    Acrylic = false,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
 
 local Tabs = {
     Misc = Window:AddTab({ Title = "Misc", Icon = "box" }),
@@ -22,12 +68,6 @@ local Tabs = {
 }
 
 local Options = Fluent.Options
-
-HubUI.applyHeader(
-    Tabs.Misc,
-    "Overview",
-    "A unified Fluent shell for farming, upgrades, sell logic, webhook alerts, and settings. Same workflow, cleaner presentation."
-)
 
 ---
 --- Sélection de la base pour l'Auto Farm
