@@ -9,7 +9,6 @@ end
 local Fluent = bundle.Fluent
 local SaveManager = bundle.SaveManager
 local InterfaceManager = bundle.InterfaceManager
-local Library = bundle.Library
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -232,8 +231,8 @@ Tabs.Spoof:AddSlider("GQValue", {
 })
 
 Tabs.Settings:AddSection("Interface")
-SaveManager:SetLibrary(Library)
-InterfaceManager:SetLibrary(Library)
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 InterfaceManager:SetFolder("LinkoHub")

@@ -9,7 +9,6 @@ end
 local Fluent = bundle.Fluent
 local SaveManager = bundle.SaveManager
 local InterfaceManager = bundle.InterfaceManager
-local Library = bundle.Library
 
 local Window = HubUI.createWindow(Fluent, "Mango Hub", "Be a Lucky Block", UDim2.fromOffset(560, 450), 160)
 
@@ -1336,8 +1335,8 @@ Options.UpgradeToggle:SetValue(false)
 ---
 --- Save and Load Config
 ---
-SaveManager:SetLibrary(Library)
-InterfaceManager:SetLibrary(Library)
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 InterfaceManager:SetFolder("FluentScriptHub")
