@@ -279,4 +279,4 @@ Window:SelectTab(1)
 -- Load autoload config
 SaveManager:LoadAutoloadConfig()
 
-print("[linkoro57] Infinite Money with Larger Fluent UI loaded successfully!")
+print("[Mango Hub] Infinite Money script loaded successfully!")
