@@ -22,8 +22,8 @@ local TARGETS = {
         path = "flex-your-fps-and-your-ping.lua",
     },
     [96017656548489] = {
-        name = "Ban or Be Banned",
-        path = "ban-or-be-banned.lua",
+        name = "Ban Or Get Banned",
+        path = "ban-or-get-banned.lua",
     },
 }
 
