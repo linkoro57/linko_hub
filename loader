@@ -18,11 +18,11 @@ local TARGETS = {
         path = "be-a-lucky-block.lua",
     },
     [18667984660] = {
-        name = "Flex Your FPS and Your Ping",
-        path = "flex-your-fps-and-your-ping.lua",
+        name = "Flex Your FPS And Ping",
+        path = "flex-your-fps-and-ping.lua",
     },
     [96017656548489] = {
-        name = "Ban Or Get Banned",
+        name = "Ban or Get Banned",
         path = "ban-or-get-banned.lua",
     },
 }
