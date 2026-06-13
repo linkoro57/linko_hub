@@ -15,22 +15,22 @@ local HUB_BASE = "https://raw.githubusercontent.com/linkoro57/linko_hub/main/"
 local TARGETS = {
     [124473577469410] = {
         name = "Be a Lucky Block",
-        path = "be-a-lucky-block.lua",
+        path = "be-a-lucky-block",
     },
     [18667984660] = {
         name = "Flex Your FPS And Ping",
-        path = "flex-your-fps-and-ping.lua",
+        path = "flex-your-fps-and-ping",
     },
     [96017656548489] = {
         name = "Ban or Get Banned",
-        path = "ban-or-get-banned.lua",
+        path = "ban-or-get-banned",
     },
 }
 
 local function runRemoteScript(path, label)
     local source = HUB_BASE .. path
     if type(loadstring) ~= "function" then
-        warn("[linkoro57] Your executor does not support loadstring.")
+        warn("[Mango Hub] Your executor does not support loadstring.")
         return
     end
 
@@ -39,13 +39,13 @@ local function runRemoteScript(path, label)
     end)
 
     if not fetchOk or type(scriptSource) ~= "string" or scriptSource == "" then
-        warn(string.format("[linkoro57] Failed to download %s (%s): %s", label, source, tostring(scriptSource)))
+        warn(string.format("[Mango Hub] Failed to download %s (%s): %s", label, source, tostring(scriptSource)))
         return
     end
 
     local chunk, compileErr = loadstring(scriptSource)
     if type(chunk) ~= "function" then
-        warn(string.format("[linkoro57] Failed to compile %s (%s): %s", label, source, tostring(compileErr)))
+        warn(string.format("[Mango Hub] Failed to compile %s (%s): %s", label, source, tostring(compileErr)))
         return
     end
 
@@ -57,7 +57,7 @@ local function runRemoteScript(path, label)
     end)
 
     if not ok then
-        warn(string.format("[linkoro57] Failed to load %s (%s): %s", label, source, tostring(err)))
+        warn(string.format("[Mango Hub] Failed to load %s (%s): %s", label, source, tostring(err)))
     end
 end
 
@@ -65,7 +65,7 @@ local placeId = game.PlaceId
 local target = TARGETS[placeId]
 
 if target then
-    print(string.format("[linkoro57] Loading %s...", target.name))
+    print(string.format("[Mango Hub] Loading %s...", target.name))
     runRemoteScript(target.path, target.name)
 else
     player:Kick("This game is not supported")
