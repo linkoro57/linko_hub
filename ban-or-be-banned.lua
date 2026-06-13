@@ -43,7 +43,7 @@ local success, err = pcall(function()
 end)
 
 if not success or not Fluent then
-    warn("[linkoro57] Failed to load Fluent UI: " .. tostring(err))
+    warn("[Mango Hub] Failed to load Fluent UI: " .. tostring(err))
     return
 end
 
@@ -58,7 +58,7 @@ local character = player.Character or player.CharacterAdded:Wait()
 -- ============================================================
 local Window = Fluent:CreateWindow({
     Title = "Mango Hub",
-    SubTitle = "Ban or Be Banned",
+    SubTitle = "Ban Or Get Banned",
     TabWidth = 180,  -- Increased tab width
     Size = UDim2.fromOffset(500, 300),  -- Larger window size
     Acrylic = false,
